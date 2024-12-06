@@ -225,12 +225,12 @@ class GameState():
             self.TILE_WIDTH = 25
             self.TILE_X_NUM = 20
             self.TILE_Y_NUM = 25
-            self.BOMB_NUM = 75
+            self.BOMB_NUM = 50
         else:
             self.TILE_WIDTH = 20
             self.TILE_X_NUM = 25
             self.TILE_Y_NUM = 30
-            self.BOMB_NUM = 130
+            self.BOMB_NUM = 110
 
     def makeTiles(self):
         x = X_BORDER
