@@ -160,6 +160,36 @@ class GameState():
         self.clock = pygame.time.Clock()
         self.filename = "highscores.txt"
 
+
+        ##### NEW  ######
+        self.board = [] ## Board will be a 2D array to store the rows of the board
+        ## This will make it easier for the AI to get around with actions and cords
+        ## Such as left, right, up, and down
+    
+    def check_board_touched(self):
+        return any(tile.revealed == True for tile in self.tiles)
+
+    
+    
+    def ai_solve(self):
+        if not self.check_board_touched(): ## if the player has not made the first move
+            
+            tile = self.board[len(self.board[0])// 2][len(self.board)//2]
+            game_state.first_click(tile)
+            game_state.place_nums()
+            game_state.first = False
+            game_state.reveal_around(tile)
+            tile.revealed = True
+
+
+            ## 1) Visit a revealed tile
+            ## 2) Add that tile to a array
+            ## 3)
+
+
+            
+        
+
     def game_over_actions(self, won):
         minutes = self.elapsed_seconds // 60
         seconds = self.elapsed_seconds % 60
@@ -237,10 +267,14 @@ class GameState():
         y = Y_BORDER
 
         for i in range(self.TILE_Y_NUM):
+            row = []
             for j in range(self.TILE_X_NUM):
                 tile = Tile(x, y, self.TILE_WIDTH, self.images)
                 self.tiles.append(tile)
+                row.append(tile)
+                
                 x += self.TILE_WIDTH
+            self.board.append(row)
             x = X_BORDER
             y += self.TILE_WIDTH
 
@@ -495,6 +529,10 @@ while game_on:
                     
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
+
+                if mouse_pos[0] > 550 and mouse_pos[1] > 750 and not game_state.game_over:
+                    ## if the player clicks the bottom right and the game is not over
+                    game_state.ai_solve()
 
                 for button in game_state.buttons:
                     if button.x < mouse_pos[0] and button.x + DIF_BTN_WIDTH> mouse_pos[0] and button.y < mouse_pos[1] and button.y + DIF_BTN_HEIGHT> mouse_pos[1]:
