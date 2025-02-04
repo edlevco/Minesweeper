@@ -89,7 +89,7 @@ def oldIsMoreThanNew(oldTime, newTime):
 
 ## tiles CLASS
 class Tile(): 
-    def __init__(self, x, y, width, images):
+    def __init__(self, x, y, width, images, pos):
         self.x = x
         self.y = y
         self.width = width 
@@ -99,6 +99,7 @@ class Tile():
         self.lost = False
         self.redX = False
         self.images = images
+        self.pos = pos
     
     def draw(self, game_lost):
             if self.lost:
@@ -145,7 +146,6 @@ class GameState():
 
         ## gameState properties
         self.buttons = []
-        self.tiles = []
         self.gameOn = True ## always true unless user quits
         self.running = True ## true while in single game
         self.first = True
@@ -160,24 +160,44 @@ class GameState():
         self.clock = pygame.time.Clock()
         self.filename = "highscores.txt"
 
-
         ##### NEW  ######
         self.board = [] ## Board will be a 2D array to store the rows of the board
         ## This will make it easier for the AI to get around with actions and cords
         ## Such as left, right, up, and down
     
     def check_board_touched(self):
-        return any(tile.revealed == True for tile in self.tiles)
+        return any(tile.revealed for row in self.board for tile in row)
+
     
 
-    def find_neighbours(self, tile):
-        print(tile.x)
+
+    def return_valid_neighbours(self, tile):
+        neighbours = []
+
+                
+        actions = [(tile.pos[0]+1, tile.pos[1]+1),
+    (tile.pos[0]-1, tile.pos[1]-1), 
+    (tile.pos[0]+1, tile.pos[1]),
+    (tile.pos[0]-1, tile.pos[1]),
+    (tile.pos[0], tile.pos[1]+1),
+    (tile.pos[0], tile.pos[1]-1),
+    (tile.pos[0]+1, tile.pos[1]-1),
+    (tile.pos[0]-1, tile.pos[1]+1),  ]
+
+
+        for i in range(len(actions)):
+            if 0 <= actions[i][0] < self.TILE_X_NUM and 0 <= actions[i][1] < self.TILE_Y_NUM:
+                neighbour = self.board[actions[i][1]][actions[i][0]]
+                neighbours.append(neighbour)
+
+                
+
+        return neighbours
 
 
 
     def ai_solve(self):
         if not self.check_board_touched(): ## if the player has not made the first move
-            print("not touched")
             tile = self.board[len(self.board[0])// 2][len(self.board)//2]
             game_state.first_click(tile)
             game_state.place_nums()
@@ -187,16 +207,28 @@ class GameState():
 
         solving = True
         while solving:
-            start_board = self.tiles
+            start_board = self.board
 
-            for tile in self.tiles:
+            for row in self.board:
+                for tile in row:
 
-                if tile.revealed and tile.hiding != "bomb" or tile.hiding != "nothing":
-                    # num = tile.hiding
+                    if tile.revealed and (tile.hiding != "bomb" and tile.hiding != "nothing"):
+                        neighbours = self.return_valid_neighbours(tile)
+                        hidden = 0
+                        for neighbour in neighbours:
+                            
+                            if not neighbour.revealed:
+                                hidden += 1
+                        if hidden == int(tile.hiding):
+                            for neighbour in neighbours:
+                                neighbour.flagged = True
 
-                    self.find_neighbours(tile)
+
+
+                        
+                        
             
-            if start_board == self.tiles:
+            if start_board == self.board:
                 break
                 
 
@@ -204,9 +236,6 @@ class GameState():
             ## 2) Add that tile to a array
             ## 3)
 
-
-            
-        
 
     def game_over_actions(self, won):
         minutes = self.elapsed_seconds // 60
@@ -232,13 +261,10 @@ class GameState():
                 
                 if oldIsMoreThanNew(highscoreStrip, time):
                     lines[index]=time+"\n"
-                
-
-
+            
                 with open(self.filename, "w") as file:
                     file.writelines(lines)
 
-    
                 self.images["win"]["rect"].topleft= (SCREEN_WIDTH / 2 - 19, SCREEN_HEIGHT / 3)
                 SCREEN.blit(self.images["win"]["image"], self.images["win"]["rect"])
                 high_score_txt = TIMER_FONT.render("Highscore: " + str(highscoreStrip), True, (0, 255, 0)) 
@@ -250,19 +276,15 @@ class GameState():
                 high_score_txt = TIMER_FONT.render("Highscore: " + str(highscoreStrip), True, BLACK) 
                 userTime = TIMER_FONT.render(str(time), True, RED) 
 
-
-
-        
-        
-        
         SCREEN.blit(high_score_txt,(SCREEN_WIDTH / 2 - high_score_txt.get_width() // 2, (SCREEN_HEIGHT / 4) - high_score_txt.get_height() // 2))
 
         SCREEN.blit(userTime,(SCREEN_WIDTH / 2 - userTime.get_width() // 2, SCREEN_HEIGHT / 6 - userTime.get_height() // 2))
 
         
     def drawTiles(self):
-        for tile in self.tiles:
-            tile.draw(self.game_lost)
+        for row in self.board:
+            for tile in row:
+                tile.draw(self.game_lost)
     def updateSettings(self):
         if self.difficulty == "Easy":
             self.TILE_WIDTH = 50
@@ -287,10 +309,8 @@ class GameState():
         for i in range(self.TILE_Y_NUM):
             row = []
             for j in range(self.TILE_X_NUM):
-                tile = Tile(x, y, self.TILE_WIDTH, self.images)
-                self.tiles.append(tile)
+                tile = Tile(x, y, self.TILE_WIDTH, self.images, (j, i))
                 row.append(tile)
-                
                 x += self.TILE_WIDTH
             self.board.append(row)
             x = X_BORDER
@@ -298,75 +318,83 @@ class GameState():
 
     ## show all the bombs (used when game lost)
     def reveal_all_bombs(self):
-        for tile in self.tiles:
-            if tile.hiding == "bomb":
-                tile.revealed = True
+        for row in self.board:
+            for tile in row:
+                if tile.hiding == "bomb":
+                    tile.revealed = True
 
     ## check for win, lose, or none
     def checkWin(self):
-        for tile in self.tiles:
-            if tile.hiding != "bomb" and tile.revealed == False:
-                return False
+        for row in self.board:
+            for tile in row:
+                if tile.hiding != "bomb" and tile.revealed == False:
+                    return False
         return "Won"
 
     # place numbers
     def place_nums(self):
-        for tile in self.tiles:
-            if tile.hiding == "bomb":
-                x = self.tiles.index(tile)
-                # Get the row and column of the current tile
-                row = x // self.TILE_X_NUM
-                col = x % self.TILE_X_NUM
 
-                # Check neighbors dynamically (CHATGPT)
-                for dx, dy in [
-                    (-1, -1), (-1, 0), (-1, 1),  # Top-left, Top, Top-right
-                    (0, -1),          (0, 1),    # Left,       Right
-                    (1, -1), (1, 0), (1, 1)     # Bottom-left, Bottom, Bottom-right
-                ]:
-                    neighbor_row = row + dx
-                    neighbor_col = col + dy
+        for row in self.board:
+            for tile in row:
+                
+                actions = [(tile.pos[0]+1, tile.pos[1]+1),
+            (tile.pos[0]-1, tile.pos[1]-1), 
+            (tile.pos[0]+1, tile.pos[1]),
+            (tile.pos[0]-1, tile.pos[1]),
+            (tile.pos[0], tile.pos[1]+1),
+            (tile.pos[0], tile.pos[1]-1),
+            (tile.pos[0]+1, tile.pos[1]-1),
+            (tile.pos[0]-1, tile.pos[1]+1),  ]
 
-                    # Ensure the neighbor is within bounds
-                    if 0 <= neighbor_row < self.TILE_Y_NUM and 0 <= neighbor_col < self.TILE_X_NUM:
-                        neighbor_index = neighbor_row * self.TILE_X_NUM + neighbor_col
-                        neighbor_tile = self.tiles[neighbor_index]
 
-                        # if its not a bomb -> if it nothing -> 1 else += 1
-                        if neighbor_tile.hiding != "bomb":
-                            if neighbor_tile.hiding == "nothing":
-                                neighbor_tile.hiding = "1"
-                            else:
-                                neighbor_tile.hiding = str(int(neighbor_tile.hiding) + 1)
+
+                if tile.hiding == "bomb":
+
+
+                    for i in range(len(actions)):
+                        if 0 <= actions[i][0] < self.TILE_X_NUM and 0 <= actions[i][1] < self.TILE_Y_NUM:
+
+                            neighbor = self.board[actions[i][1]][actions[i][0]]
+
+                            if neighbor.hiding != "bomb":
+                                if neighbor.hiding == "nothing":
+                                    neighbor.hiding = "1"
+                                else:
+                                    neighbor.hiding = str(int(neighbor.hiding) + 1)
 
     def first_click(self, tile):
-        # Determine the one-tile radius around the clicked tile
-        restricted_positions = set()
-        for dx, dy in [ # learn what this is 
-            (-1, -1), (-1, 0), (-1, 1),  # Top-left, Top, Top-right
-            (0, -1),          (0, 1),    # Left,       Right
-            (1, -1), (1, 0), (1, 1),     # Bottom-left, Bottom, Bottom-right
-            (0, 0)                       # The clicked tile itself
-        ]:
-            neighbor_x = tile.x + dx * self.TILE_WIDTH
-            neighbor_y = tile.y + dy * self.TILE_WIDTH
-            for i, sq in enumerate(self.tiles): ## ????
-                if sq.x == neighbor_x and sq.y == neighbor_y:
-                    restricted_positions.add(i)
+        actions = [(tile.pos[0]+1, tile.pos[1]+1),
+                   (tile.pos[0]-1, tile.pos[1]-1), 
+                   (tile.pos[0]+1, tile.pos[1]),
+                    (tile.pos[0]-1, tile.pos[1]),
+                    (tile.pos[0], tile.pos[1]+1),
+                    (tile.pos[0], tile.pos[1]-1),
+                    (tile.pos[0]+1, tile.pos[1]-1),
+                    (tile.pos[0]-1, tile.pos[1]+1),  ]
+
+        restricted_pos = [(tile.pos[0], tile.pos[1])]
+
+        for i in range(len(actions)):
+            if actions[i][0] > 0 and actions[i][0] < self.TILE_X_NUM and actions[i][1] > 0 and actions[i][1] < self.TILE_Y_NUM:
+                restricted_pos.append(actions[i])
 
         # place correct amount of bombs till max without 1 tile radius
         bombs_placed = 0
         while bombs_placed < self.BOMB_NUM:
-            rand_num = random.randint(0, len(self.tiles) - 1)
-            if rand_num not in restricted_positions and self.tiles[rand_num].hiding != "bomb":
-                self.tiles[rand_num].hiding = "bomb"
+            rand_x = random.randint(0, self.TILE_X_NUM-1)
+            rand_y = random.randint(0, self.TILE_Y_NUM-1)
+
+            rand_num = (rand_x, rand_y)
+            if rand_num not in restricted_pos and self.board[rand_y][rand_x].hiding != "bomb":
+                self.board[rand_y][rand_x].hiding = "bomb"
                 bombs_placed += 1
 
     ## reveal all bombs (When player loses)
     def reveal_bombs(self): 
-        for tile in self.tiles:
-            if tile.hiding == "bomb":
-                tile.revealed = True
+        for row in self.board:
+            for tile in row:
+                if tile.hiding == "bomb":
+                    tile.revealed = True
 
     def draw_timer(self):
         over_max = 999
@@ -378,16 +406,18 @@ class GameState():
 
     def find_flags_placed(self):
         num_flagged = 0
-        for tile in self.tiles:
-            if tile.flagged and not tile.revealed:
-                num_flagged+=1
+        for row in self.board:
+            for tile in row:
+                if tile.flagged and not tile.revealed:
+                    num_flagged+=1
         return num_flagged
     
     def find_bombs_w_flags(self):
         num_flag_bomb = 0
-        for tile in self.tiles:
-            if tile.flagged and tile.hiding == "bomb":
-                num_flag_bomb+=1
+        for row in self.board:
+            for tile in row:
+                if tile.flagged and tile.hiding == "bomb":
+                    num_flag_bomb+=1
         return num_flag_bomb
     
     ## writes the number of bombs left based on flags
@@ -399,35 +429,37 @@ class GameState():
         
     def reveal_around(self, tile):
         # Find the index of the tile in the list
-        x = self.tiles.index(tile)
-        
+        x = tile.pos[0]
+        y = tile.pos[1]
+
         # Stop if the tile is already revealed or a bomb
-        if self.tiles[x].revealed or self.tiles[x].hiding == "bomb":
+        if self.board[y][x].revealed or self.board[y][x].hiding == "bomb":
             return
         
         # Reveal the tile
-        self.tiles[x].revealed = True
+        self.board[y][x].revealed = True
 
         # Only continue recursion if the tile is empty
-        if self.tiles[x].hiding != "nothing":
+        if self.board[y][x].hiding != "nothing":
             return
         
-        # Check neighbors dynamically
-        for dx, dy in [
-            (-1, -1), (-1, 0), (-1, 1),  # Top-left, Top, Top-right
-            (0, -1),          (0, 1),    # Left,       Right
-            (1, -1), (1, 0), (1, 1)     # Bottom-left, Bottom, Bottom-right
-        ]:
-            neighbor_x = self.tiles[x].x + dx * self.TILE_WIDTH
-            neighbor_y = self.tiles[x].y + dy * self.TILE_WIDTH
-            
-            # Find the neighbor tile
-            for neighbor in self.tiles:
-                if neighbor.x == neighbor_x and neighbor.y == neighbor_y:
-                    self.reveal_around(neighbor)  # Recursive call
-                    break
+        actions = [(tile.pos[0]+1, tile.pos[1]+1),
+                   (tile.pos[0]-1, tile.pos[1]-1), 
+                   (tile.pos[0]+1, tile.pos[1]),
+                    (tile.pos[0]-1, tile.pos[1]),
+                    (tile.pos[0], tile.pos[1]+1),
+                    (tile.pos[0], tile.pos[1]-1),
+                    (tile.pos[0]+1, tile.pos[1]-1),
+                    (tile.pos[0]-1, tile.pos[1]+1),]
 
-    
+
+        for i in range(len(actions)):
+            if 0 <= actions[i][0] < self.TILE_X_NUM and 0 <= actions[i][1] < self.TILE_Y_NUM:
+                self.reveal_around(self.board[actions[i][1]][actions[i][0]])
+                
+
+
+
     def draw_background(self):
         background = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         SCREEN.blit(background, (0, 0))
@@ -538,12 +570,13 @@ while game_on:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         mouse_pos = pygame.mouse.get_pos()
-                        for tile in game_state.tiles:
-                            if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
-                                if tile.flagged == False:
-                                    tile.flagged = True
-                                else: 
-                                    tile.flagged=False
+                        for row in game_state.board:
+                            for tile in row:
+                                if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
+                                    if tile.flagged == False:
+                                        tile.flagged = True
+                                    else: 
+                                        tile.flagged=False
                     
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
@@ -568,27 +601,29 @@ while game_on:
                 if not game_state.game_over:
                     if event.button == 3:
                         ## flag tile
-                        for tile in game_state.tiles:
-                            if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
-                                if tile.flagged == False:
-                                    tile.flagged = True
-                                else: 
-                                    tile.flagged=False
+                        for row in game_state.board:
+                            for tile in row:
+                                if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
+                                    if tile.flagged == False:
+                                        tile.flagged = True
+                                    else: 
+                                        tile.flagged=False
                     else:
-                        for tile in game_state.tiles:
-                            if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
-                                if not tile.flagged:
-                                    if game_state.first:
-                                        start_ticks = pygame.time.get_ticks()
-                                        game_state.first_click(tile)
-                                        game_state.place_nums()
-                                        game_state.first = False
-                                    if tile.hiding == "bomb": ## if you uncover a bomb / lose
-                                        tile.lost = True
-                                        game_state.game_over = True
-                                        game_state.game_lost = True
-                                    game_state.reveal_around(tile)
-                                    tile.revealed = True
+                        for row in game_state.board:
+                            for tile in row:
+                                if tile.x < mouse_pos[0] and tile.x + game_state.TILE_WIDTH> mouse_pos[0] and tile.y < mouse_pos[1] and tile.y + game_state.TILE_WIDTH> mouse_pos[1]:
+                                    if not tile.flagged:
+                                        if game_state.first:
+                                            start_ticks = pygame.time.get_ticks()
+                                            game_state.first_click(tile)
+                                            game_state.place_nums()
+                                            game_state.first = False
+                                        if tile.hiding == "bomb": ## if you uncover a bomb / lose
+                                            tile.lost = True
+                                            game_state.game_over = True
+                                            game_state.game_lost = True
+                                        game_state.reveal_around(tile)
+                                        tile.revealed = True
                     
 
         
