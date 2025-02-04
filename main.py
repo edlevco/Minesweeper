@@ -168,12 +168,16 @@ class GameState():
     
     def check_board_touched(self):
         return any(tile.revealed == True for tile in self.tiles)
+    
 
-    
-    
+    def find_neighbours(self, tile):
+        print(tile.x)
+
+
+
     def ai_solve(self):
         if not self.check_board_touched(): ## if the player has not made the first move
-            
+            print("not touched")
             tile = self.board[len(self.board[0])// 2][len(self.board)//2]
             game_state.first_click(tile)
             game_state.place_nums()
@@ -181,6 +185,20 @@ class GameState():
             game_state.reveal_around(tile)
             tile.revealed = True
 
+        solving = True
+        while solving:
+            start_board = self.tiles
+
+            for tile in self.tiles:
+
+                if tile.revealed and tile.hiding != "bomb" or tile.hiding != "nothing":
+                    # num = tile.hiding
+
+                    self.find_neighbours(tile)
+            
+            if start_board == self.tiles:
+                break
+                
 
             ## 1) Visit a revealed tile
             ## 2) Add that tile to a array
